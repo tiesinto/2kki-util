@@ -204,7 +204,7 @@ fi
 
 install_rtp "$work_dir/rtp"
 write_debug 'installing RTP'
-cp -R "$work_dir/rtp"/* "$real_game_dir"
+cp -R "$work_dir/rtp/2000/RTP"/* "$real_game_dir"
 rm -Rf "$work_dir/rtp"
 
 install_language "$work_dir/lang"
