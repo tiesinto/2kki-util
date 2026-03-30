@@ -1,7 +1,7 @@
 ## 2kki-util
 This script simply takes 2kki game archives and patches you download from the <a href="https://wikiwiki.jp/yumenikki-g3/#Schedule">2kki Wiki</a> and does the following:
 - Applies the patch (should you have specified one);
-- Adds the <a href="https://tkool.jp/products/rtp/2000rtp.zip">RPG Maker 2000 RTP</a> and its <a href="https://tkool.jp/products/rtp/RTP_patchk_190612.zip">patch</a>;
+- Adds the <a href="https://tkool.jp/products/rtp/2000rtp.zip">japanese RPG Maker 2000 RTP</a> and its <a href="https://tkool.jp/products/rtp/RTP_patchk_190612.zip">patch</a>;
 - Adds the <a href="https://github.com/ynoproject/ynotranslations">YNO translations</a> to the game folder;
 - Converts all audio to Opus to reduce the game size to ~2GB;
 - Patches the RPG_RT.ini to be able to use EasyRPG's widescreen hacks.
