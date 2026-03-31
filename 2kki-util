@@ -4,11 +4,55 @@
 # Tool to install and/or patch Yume 2kki
 #
 
+print_debug_vars(){
+	printf '
+	this script does not cleanup on INT SIGTERM or die()
+	here are what paths are set to should you want to check/delete them
+		working directory:  %s
+		output directory:   %s
+		game path:          %s
+		patch file:         %s
+		actual game folder: %s
+	\n' "$work_dir" "$out_dir" "$game_path" "$patch_file" "$real_game_dir" >&2
+}
+
+write_debug(){
+	printf '%s: %s\n' "${0##*/}" "$1"
+}
+
+die(){
+	write_debug "$1" >&2
+	print_debug_vars
+	exit 1
+}
+
+usage(){
+	printf '
+	%s [-d] [-7 PATCH|GAME|BOTH] -g ARCHIVE|DIRECTORY [-p ARCHIVE] [-o DIRECTORY] [-w DIRECTORY]
+
+		-g     select game directory/archive
+		-p     select patch archive
+		-o     set custom output directory
+		-w     set custom working directory
+
+		-d     remove working directory after installation
+		-7     use 7z extractor for PATCH, GAME or BOTH
+
+	-o will default to the game path if the game is a directory and -o is unset
+	if using -p you must provide an archive
+	if using -g without -p the game must be an archive
+	-o cannot be the same as -w or -g
+
+	N.B: 7zip is unlikely to create a useable installation of Yume 2kki if
+	the archive is not a .7z
+	\n' "${0##*/}" >&2
+	exit 1
+}
+
 #shellcheck disable=SC2038
 cicp(){
 	_src="$1"
 	_dest="$2"
-
 
 	find "$_src" -mindepth 1 -maxdepth 1 -type d | while read -r src_dir ; do
 		src_base="$(basename "$src_dir")"
@@ -34,47 +78,6 @@ cicp(){
 	find "$_src" -mindepth 1 -maxdepth 1 -type f | xargs -I _ cp _ "$_dest"
 }
 
-print_debug_vars(){
-	printf '
-	this script does not cleanup on INT SIGTERM or die()
-	here are what paths are set to should you want to check/delete them
-		working directory:  %s
-		output directory:   %s
-		game path:          %s
-		patch file:         %s
-		actual game folder: %s
-	\n' "$work_dir" "$out_dir" "$game_path" "$patch_file" "$real_game_dir" >&2
-}
-
-write_debug(){
-	printf '%s: %s\n' "${0##*/}" "$1"
-}
-
-die(){
-	write_debug "$1" >&2
-	print_debug_vars
-	exit 1
-}
-
-usage(){
-	printf '
-	%s [-d] -g ARCHIVE|DIRECTORY [-p ARCHIVE] [-o DIRECTORY] [-w DIRECTORY]
-
-		-g     select game directory/archive
-		-p     select patch archive
-		-o     set custom output directory
-		-w     set custom working directory
-
-		-d     remove working directory after installation
-
-	-o will default to the game path if the game is a directory and -o is unset
-	if using -p you must provide an archive
-	if using -g without -p the game must be an archive
-	-o cannot be the same as -w or -g
-	\n' "${0##*/}" >&2
-	exit 1
-}
-
 determine_real_game_dir(){
 	_ldb_path="$(find "$1" -type f -name 'RPG_RT.ldb')"
 	_actual_game_path="$(realpath -q "${_ldb_path%/*}" 2>/dev/null)"
@@ -87,26 +90,45 @@ determine_real_game_dir(){
 }
 
 convert_to_opus(){
+	_no_conv=0
 	_target_dir="$1"
 	_bitrate="$2"
 
 	[ ! -d "$_target_dir" ] && return 1
 
+	_no_files="$(find "$_target_dir" -type f -iname '*.wav' | wc -l | \
+		tr -d '[:space:]')"
+
+	write_debug 'converting WAVs'
+
 	# convert normal wavs
 	find "$_target_dir" -type f -iname '*.wav' | while read -r file; do
-		opusenc --vbr --bitrate "$_bitrate" "$file" "${file%.*}.opus" ||
+		printf '\r\t%03d%% complete' "$((100 * _no_conv / _no_files))"
+
+		opusenc --vbr --bitrate "$_bitrate" "$file" "${file%.*}.opus" >/dev/null 2>&1 ||
 			# convert abpcm
-			ffmpeg -nostdin -i "$file" -acodec pcm_s16le -f wav - | \
-			opusenc --vbr --bitrate "$_bitrate" - "${file%.*}.opus" &&
+			ffmpeg -nostdin -i "$file" -acodec pcm_s16le -f wav - 2>/dev/null | \
+			opusenc --vbr --bitrate "$_bitrate" - "${file%.*}.opus" >/dev/null 2>&1 &&
 			rm "$file"
-	done
+
+		_no_conv="$((_no_conv + 1))"
+	done ; printf '\033[K\r'
+
+	_no_files="$(find "$_target_dir" -type f -iname '*.mp3' | wc -l | \
+		tr -d '[:space:]')"
+
+	write_debug 'converting MP3s'
 
 	# convert mp3s
 	find "$_target_dir" -type f -iname '*.mp3' | while read -r file; do
-		lame --decode "$file" - | \
-			opusenc --vbr --bitrate "$_bitrate" - "${file%.*}.opus" &&
+		printf '\r\t%03d%% complete' "$((100 * _no_conv / _no_files))"
+
+		lame --decode "$file" - 2>/dev/null | \
+			opusenc --vbr --bitrate "$_bitrate" - "${file%.*}.opus" >/dev/null 2>&1 &&
 			rm "$file"
-	done
+
+		_no_conv="$((_no_conv + 1))"
+	done ; printf '\033[K\r'
 }
 
 install_rtp(){
@@ -172,7 +194,7 @@ exec_dir="$PWD"
 work_dir="$exec_dir/2kki-install-working"
 out_dir="$exec_dir/2kki-install-output"
 
-while getopts :dw:o:g:p: OPT ; do case "$OPT" in
+while getopts :dw:o:g:p:7: OPT ; do case "$OPT" in
 	o)
 	       out_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
 	       is_out_dir_changed=1
@@ -184,6 +206,7 @@ while getopts :dw:o:g:p: OPT ; do case "$OPT" in
 	g) game_path="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
 	p) patch_file="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
 	d) delete_work_dir=1 ;;
+	7) use_7zip="$OPTARG" ;;
 	?) usage ;;
 esac done
 
@@ -195,17 +218,23 @@ done
 [ -z "$patch_file" ] && [ -d "$game_path" ] && die 'solitary game folders currently must be an archive'
 [ -d "$patch_file" ] && die 'currently the patch must be an archive'
 
-[ -z "$is_out_dir_changed" ] && [ -d "$out_dir" ] && die 'output directory already exists'
-[ -z "$is_out_dir_changed" ] && [ -d "$work_dir" ] && die 'working directory already exists'
-mkdir -p "$work_dir"
-mkdir -p "$out_dir"
-[ ! -d "$work_dir" ] && die 'failure making working directory'
-[ ! -d "$out_dir" ] && die 'failure making output directory'
-
 [ "$work_dir" = "$out_dir" ] &&
 	die 'working directory and output directory cannot be the same'
 [ "$game_path" = "$out_dir" ] || [ "$game_path" = "$work_dir" ] &&
 	die 'game path cannot be the output/working directory'
+
+[ -z "$is_out_dir_changed" ] && [ -d "$out_dir" ] && die 'output directory already exists'
+[ -z "$is_out_dir_changed" ] && [ -d "$work_dir" ] && die 'working directory already exists'
+
+case "$use_7zip" in
+	BOTH|GAME|PATCH) : ;;
+	*) usage ;;
+esac
+
+mkdir -p "$work_dir"
+mkdir -p "$out_dir"
+[ ! -d "$work_dir" ] && die 'failure making working directory'
+[ ! -d "$out_dir" ] && die 'failure making output directory'
 
 # trap print_debug_vars INT TERM
 
@@ -217,10 +246,13 @@ done
 
 if [ -f "$game_path" ]; then
 	write_debug 'extracting game archive'
-	! unar -e ms932 "$game_path" -o "$work_dir/game" -D -q >/dev/null 2>&1 &&
-		die 'error extracting game archive'
-	# ! 7z -mmt x "$game_path" -o"$work_dir/game" &&
-	# 	die 'error extracting game archive'
+	if [ "$use_7zip" = 'GAME' ] || [ "$use_7zip" = 'BOTH' ]; then
+		! 7z -mmt x "$game_path" -o"$work_dir/game" &&
+			die 'error extracting game archive'
+	else
+		! unar -e ms932 "$game_path" -o "$work_dir/game" -D &&
+			die 'error extracting game archive'
+	fi
 
 	write_debug 'determining real game directory'
 	real_game_dir="$(determine_real_game_dir "$work_dir/game")"
@@ -252,22 +284,27 @@ if [ ! -e "$real_game_dir/Language" ]; then
 fi
 
 write_debug 'converting music to opus'
-convert_to_opus "$real_game_dir/Music" 85 >/dev/null 2>&1
+convert_to_opus "$real_game_dir/Music" 85
 write_debug 'converting sound files to opus'
-convert_to_opus "$real_game_dir/Sound" 50 >/dev/null 2>&1
+convert_to_opus "$real_game_dir/Sound" 50
 
 if [ -f "$patch_file" ]; then
 	write_debug 'extracting patch'
-	! unar -e ms932 "$patch_file" -o "$work_dir/patch" -D -q >/dev/null 2>&1 &&
-		die 'error extracting patch archive'
+	if [ "$use_7zip" = 'PATCH' ] || [ "$use_7zip" = 'BOTH' ]; then
+		! 7z -mmt x "$patch_file" -o"$work_dir/patch" &&
+			die 'error extracting patch archive'
+	else
+		! unar -e ms932 "$patch_file" -o "$work_dir/patch" -D &&
+			die 'error extracting patch archive'
+	fi
 
 	write_debug 'determining real patch directory'
 	real_patch_dir="$(determine_real_game_dir "$work_dir/patch")"
 
 	write_debug 'converting music to opus'
-	convert_to_opus "$real_patch_dir/Music" 85 >/dev/null 2>&1
+	convert_to_opus "$real_patch_dir/Music" 85
 	write_debug 'converting sound files to opus'
-	convert_to_opus "$real_patch_dir/Sound" 50 >/dev/null 2>&1
+	convert_to_opus "$real_patch_dir/Sound" 50
 
 	write_debug 'case-insensitively applying patch to game files'
 	cicp "$real_patch_dir" "$real_game_dir"
