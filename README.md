@@ -18,5 +18,7 @@ Run the script with --help to get started. Currently the script is only tested o
 - lame for converting MP3
 - unshield for extracting the CAB files
 
+> N.B: 7zip can also be used to speed up extraction although 7zip's support for the encoding that Yume 2kki uses is unpredictable or nonfunctional with archive formats that are not .7z. If you have issues using the `-7` flag then do not use it.
+
 ## Credits
 The install_rtp() function was adapted from the <a href="https://aur.archlinux.org/packages/rpg2000-rtp">rpg2000-rtp PKGBUILD</a> written by <a href="https://github.com/carstene1ns">Carsten Teibes</a> of <a href="https://github.com/EasyRPG/Player">EasyRPG</a>; the rest of the script was written by tiesinto.
