@@ -1,15 +1,42 @@
 #!/bin/sh
-#shellcheck disable=SC2086
-#shellcheck disable=SC2046
 #shellcheck disable=SC2034
 #
 # Tool to install and/or patch Yume 2kki
 #
 
-#shellcheck disable=SC2329
+#shellcheck disable=SC2038
+cicp(){
+	_src="$1"
+	_dest="$2"
+
+
+	find "$_src" -mindepth 1 -maxdepth 1 -type d | while read -r src_dir ; do
+		src_base="$(basename "$src_dir")"
+		if [ -d "$_dest/$src_base" ]; then
+			cp -R "$src_dir" "$_dest"
+		else
+			ci_match="$(find "$_dest" -mindepth 1 -maxdepth 1 -type d -iname "$src_base")"
+			if [ "$(printf '%s\n' "$ci_match" | wc -l | tr -d '[:space:]')" -gt 1 ]; then
+				write_debug "WARNING: more than one match found for case insensitive move: $src_dir" >&2
+				printf '%s\n' "$ci_match" | while read -r conflict; do
+					write_debug "conflict: $conflict" >&2
+				done
+				continue
+			fi
+			if [ -n "$ci_match" ]; then
+				cp -R "$src_dir"/* "$ci_match"
+			else
+				cp -R "$src_dir" "$_dest"
+			fi
+		fi
+	done
+
+	find "$_src" -mindepth 1 -maxdepth 1 -type f | xargs -I _ cp _ "$_dest"
+}
+
 print_debug_vars(){
 	printf '
-	this script does not cleanup on EXIT INT SIGTERM or die()
+	this script does not cleanup on INT SIGTERM or die()
 	here are what paths are set to should you want to check/delete them
 		working directory:  %s
 		output directory:   %s
@@ -23,9 +50,9 @@ write_debug(){
 	printf '%s: %s\n' "${0##*/}" "$1"
 }
 
-
 die(){
 	write_debug "$1" >&2
+	print_debug_vars
 	exit 1
 }
 
@@ -53,7 +80,8 @@ determine_real_game_dir(){
 	_actual_game_path="$(realpath -q "${_ldb_path%/*}" 2>/dev/null)"
 
 	[ -z "$_actual_game_path" ] || [ ! -f "$_actual_game_path/RPG_RT.ini" ] ||
-		[ "$(printf  '%s\n' "$_ldb_path" | wc -l)" -gt 1 ] && return 1
+		[ "$(printf  '%s\n' "$_ldb_path" | wc -l)" -gt 1 ] &&
+			die "unable to determine real 2kki directory: $1"
 
 	printf '%s' "$_actual_game_path"
 }
@@ -84,60 +112,67 @@ convert_to_opus(){
 install_rtp(){
 	_rtp_dir="$1"
 
+	mkdir -p "$_rtp_dir/raw"
+	[ ! -d "$_rtp_dir/raw" ] && die "unable to create subdirectory: $_rtp_dir/raw"
+
 	write_debug 'downloading RTP archives'
 
 	curl -sSfLO --output-dir "$_rtp_dir" "https://tkool.jp/products/rtp/2000rtp.zip" >/dev/null
 	curl -sSfLO --output-dir "$_rtp_dir" "https://tkool.jp/products/rtp/RTP_patchk_190612.zip" >/dev/null
 
-	[ ! -f "$_rtp_dir/2000rtp.zip" ] || [ ! -f "$_rtp_dir/RTP_patchk_190612.zip" ] && die 'RTP could not be downloaded'
+	[ ! -f "$_rtp_dir/2000rtp.zip" ] || [ ! -f "$_rtp_dir/RTP_patchk_190612.zip" ] &&
+		die 'RTP could not be downloaded'
 
-	write_debug 'patching RTP'
+	write_debug 'unpacking RTP'
 
 	# this was mainly adapted from the pkgbuild for rpg2000-rtp
 	# written by carstene1ns from easyrpg <arch carsten-teibes de>
 	# http://git.io/ctPKG
 
 	# unpack
-	unar -e ms932 "$_rtp_dir/2000rtp.zip" -o "$_rtp_dir" -q >/dev/null 2>&1
-	unar "$_rtp_dir/RTPｾｯﾄｱｯﾌﾟ/RPG2000RTP.exe" -o "$_rtp_dir" -q >/dev/null 2>&1
-	unshield -e ms932 -d "$_rtp_dir/rtp" x "$_rtp_dir/RPG2000RTP/data1.cab" >/dev/null 2>&1
-	unar -e ms932 "$_rtp_dir/RTP_patchk_190612.zip" -o "$_rtp_dir" -q >/dev/null 2>&1
-	mv "$_rtp_dir/rtp/RPGﾂｸｰﾙ2000_ﾗﾝﾀｲﾑﾊﾟｯｹｰｼﾞ" "$_rtp_dir/2000"
+	unar -e ms932 "$_rtp_dir/2000rtp.zip" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
+	unar "$_rtp_dir/raw/RTPｾｯﾄｱｯﾌﾟ/RPG2000RTP.exe" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
+	unshield -e ms932 -d "$_rtp_dir/raw/rtp" x "$_rtp_dir/raw/RPG2000RTP/data1.cab" >/dev/null 2>&1
+	unar -e ms932 "$_rtp_dir/RTP_patchk_190612.zip" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
+	mv "$_rtp_dir/raw/rtp/RPGﾂｸｰﾙ2000_ﾗﾝﾀｲﾑﾊﾟｯｹｰｼﾞ" "$_rtp_dir/raw/2000"
+
+	write_debug 'patching RTP'
+
 	# convert text
-	iconv -f ms932 -t UTF-8 "$_rtp_dir/RTPｾｯﾄｱｯﾌﾟ/使用規約.txt" > "$_rtp_dir/使用規約.txt"
-	iconv -f ms932 -t UTF-8 "$_rtp_dir/RTP_patchk_190612/RTPの修正ファイルについて.txt" > "$_rtp_dir/RTPの修正ファイルについて.txt"
+	iconv -f ms932 -t UTF-8 "$_rtp_dir/raw/RTPｾｯﾄｱｯﾌﾟ/使用規約.txt" > "$_rtp_dir/raw/使用規約.txt"
+	iconv -f ms932 -t UTF-8 "$_rtp_dir/raw/RTP_patchk_190612/RTPの修正ファイルについて.txt" > "$_rtp_dir/raw/RTPの修正ファイルについて.txt"
 	# apply patch
-	mv "$_rtp_dir/RTP_patchk_190612/モンスター.png" "$_rtp_dir/2000/RTP/FaceSet"
-	mv "$_rtp_dir/RTP_patchk_190612/主人公3.png" "$_rtp_dir/2000/RTP/CharSet"
+	mv "$_rtp_dir/raw/RTP_patchk_190612/モンスター.png" "$_rtp_dir/raw/2000/RTP/FaceSet"
+	mv "$_rtp_dir/raw/RTP_patchk_190612/主人公3.png" "$_rtp_dir/raw/2000/RTP/CharSet"
 	for img_name in '基本' 'ダンジョン' '船' '内装' '外観'; do
-		mv "$_rtp_dir/RTP_patchk_190612/$img_name.png" "$_rtp_dir/2000/RTP/ChipSet"
+		mv "$_rtp_dir/raw/RTP_patchk_190612/$img_name.png" "$_rtp_dir/raw/2000/RTP/ChipSet"
 	done
+
+	rm "$_rtp_dir/RTP_patchk_190612.zip" "$_rtp_dir/2000rtp.zip"
+	mv "$_rtp_dir/raw/2000/RTP"/* "$_rtp_dir"
+	rm -Rf "$_rtp_dir/raw"
 }
 
 install_language(){
 	_yno_translations_url='https://github.com/ynoproject/ynotranslations/archive/refs/heads/master.zip'
 	_trans_dir="$1"
 
+	mkdir -p "$_trans_dir/raw"
+	[ ! -d "$_trans_dir/raw" ] && die "unable to create subdirectory: $_trans_dir/raw"
+
 	write_debug 'downloading YNO translations'
 
 	curl -sSfLo "$_trans_dir/out.zip" "$_yno_translations_url"
 	unar -e ms932 "$_trans_dir/out.zip" -o "$_trans_dir/raw" -q >/dev/null 2>&1
-	rm "$_trans_dir/out.zip"
-	cp -R "$_trans_dir/raw/ynotranslations-master/2kki" "$_trans_dir"
-	rm -Rf "$_trans_dir/raw"
+	mv "$_trans_dir/raw/ynotranslations-master/2kki"/* "$_trans_dir"
+	rm -Rf "$_trans_dir/raw" "$_trans_dir/out.zip"
 }
 
 exec_dir="$PWD"
 work_dir="$exec_dir/2kki-install-working"
 out_dir="$exec_dir/2kki-install-output"
 
-while getopts dw:o:g:p: opt ; do case "$opt" in
-	g)
-	       game_path="$(realpath -q "$OPTARG" 2>/dev/null)"
-	       ;;
-	p)
-	       patch_file="$(realpath -q "$OPTARG" 2>/dev/null)"
-	       ;;
+while getopts :dw:o:g:p: OPT ; do case "$OPT" in
 	o)
 	       out_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
 	       is_out_dir_changed=1
@@ -146,13 +181,13 @@ while getopts dw:o:g:p: opt ; do case "$opt" in
 	       work_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
 	       is_work_dir_changed=1
 	       ;;
-	d)
-		delete_work_dir=1
-		;;
+	g) game_path="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
+	p) patch_file="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
+	d) delete_work_dir=1 ;;
 	?) usage ;;
 esac done
 
-for dep in 'unar' 'unshield' 'opusenc' 'ffmpeg' 'lame'; do
+for dep in 'curl' 'unar' 'unshield' 'opusenc' 'ffmpeg' 'lame'; do
 	! command -v $dep >/dev/null 2>&1 && die "missing dependency: $dep"
 done
 
@@ -172,7 +207,7 @@ mkdir -p "$out_dir"
 [ "$game_path" = "$out_dir" ] || [ "$game_path" = "$work_dir" ] &&
 	die 'game path cannot be the output/working directory'
 
-trap print_debug_vars EXIT INT TERM
+# trap print_debug_vars INT TERM
 
 for temp_work_dir in 'game' 'rtp' 'lang' 'patch'; do
 	mkdir -p "$work_dir/$temp_work_dir"
@@ -184,16 +219,16 @@ if [ -f "$game_path" ]; then
 	write_debug 'extracting game archive'
 	! unar -e ms932 "$game_path" -o "$work_dir/game" -D -q >/dev/null 2>&1 &&
 		die 'error extracting game archive'
+	# ! 7z -mmt x "$game_path" -o"$work_dir/game" &&
+	# 	die 'error extracting game archive'
 
 	write_debug 'determining real game directory'
-	real_game_dir="$(! determine_real_game_dir "$work_dir/game" &&
-		die 'unable to determine real game directory')"
+	real_game_dir="$(determine_real_game_dir "$work_dir/game")"
 elif [ -d "$game_path" ]; then
 	write_debug 'determining real game directory'
-	real_game_dir="$(! determine_real_game_dir "$game_path" &&
-		die 'unable to determine real game directory')"
+	real_game_dir="$(determine_real_game_dir "$game_path")"
 else
-	die 'game path is not an archive or a directory'
+	die 'game path is neither an archive nor a directory'
 fi
 
 if [ "$is_out_dir_changed" = '1' ] && [ -d "$game_path" ]; then
@@ -203,21 +238,23 @@ if [ "$is_out_dir_changed" = '1' ] && [ -d "$game_path" ]; then
 fi
 
 install_rtp "$work_dir/rtp"
-write_debug 'installing RTP'
-cp -R "$work_dir/rtp/2000/RTP"/* "$real_game_dir"
+write_debug 'case-insensitively installing RTP'
+cicp "$work_dir/rtp" "$real_game_dir"
 rm -Rf "$work_dir/rtp"
 
-install_language "$work_dir/lang"
-write_debug 'installing languages'
-mv "$work_dir/lang/2kki" "$real_game_dir/Language"
-rm -Rf "$work_dir/lang"
+if [ ! -e "$real_game_dir/Language" ]; then
+	install_language "$work_dir/lang"
+	write_debug 'installing languages'
+	mv "$work_dir/lang" "$real_game_dir/Language"
+	[ ! -d "$real_game_dir/Language" ] &&
+		die "unable to create subdirectory: $real_game_dir/Language"
+	rm -Rf "$work_dir/lang"
+fi
 
 write_debug 'converting music to opus'
-! convert_to_opus "$real_game_dir/Music" 85 >/dev/null 2>&1 &&
-	write_debug "skipping converting $real_game_dir/Music"
+convert_to_opus "$real_game_dir/Music" 85 >/dev/null 2>&1
 write_debug 'converting sound files to opus'
-! convert_to_opus "$real_game_dir/Sound" 50 >/dev/null 2>&1 &&
-	write_debug "skipping converting $real_game_dir/Sound"
+convert_to_opus "$real_game_dir/Sound" 50 >/dev/null 2>&1
 
 if [ -f "$patch_file" ]; then
 	write_debug 'extracting patch'
@@ -225,23 +262,21 @@ if [ -f "$patch_file" ]; then
 		die 'error extracting patch archive'
 
 	write_debug 'determining real patch directory'
-	real_patch_dir="$(! determine_real_game_dir "$work_dir/patch" &&
-		die 'unable to determine real patch directory')"
+	real_patch_dir="$(determine_real_game_dir "$work_dir/patch")"
 
 	write_debug 'converting music to opus'
-	! convert_to_opus "$real_patch_dir/Music" 85 >/dev/null 2>&1 &&
-		write_debug "skipping converting $real_patch_dir/Music"
+	convert_to_opus "$real_patch_dir/Music" 85 >/dev/null 2>&1
 	write_debug 'converting sound files to opus'
-	! convert_to_opus "$real_patch_dir/Sound" 50 >/dev/null 2>&1 &&
-		write_debug "skipping converting $real_patch_dir/Sound"
+	convert_to_opus "$real_patch_dir/Sound" 50 >/dev/null 2>&1
 
-	write_debug 'applying patch to game files'
-	cp -R "$real_patch_dir"/* "$real_game_dir"
+	write_debug 'case-insensitively applying patch to game files'
+	cicp "$real_patch_dir" "$real_game_dir"
 	rm -Rf "$work_dir/patch"
 fi
 
 write_debug 'patching RPG_RT.ini'
 sed -i 's/MapEditZoom=.*/MapEditZoom=0/;/^WinW=/d;/^WinH=/d' "$real_game_dir/RPG_RT.ini"
+write_debug 'removing RPG_RT.exe'
 rm "$real_game_dir/RPG_RT.exe"
 
 if [ ! "$out_dir" = "$game_path" ]; then
@@ -253,8 +288,6 @@ if [ "$delete_work_dir" = '1' ]; then
 	write_debug 'removing working directory'
 	rm -Rf "$work_dir"
 fi
-
-trap - EXIT
 
 write_debug "successfully installed Yume 2kki to: $out_dir"
 

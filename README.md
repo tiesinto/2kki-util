@@ -8,6 +8,8 @@ This script simply takes 2kki game archives and patches which you download from 
 
 Run the script with --help to get started.
 
+> N.B: Only the top level of directories in patches are applied to the game files case-insensitively (e.g. `GameOver` and `Gameover` will not conflict)—files and deeper subdirectories are not checked for matches and will be copied as normal.
+
 ## Dependencies
 - curl for downloading;
 - unar for extracting;
