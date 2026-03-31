@@ -6,7 +6,7 @@ This script simply takes 2kki game archives and patches which you download from 
 - Converts all audio to Opus to reduce the game size to ~2GB;
 - Patches the RPG_RT.ini to be able to use EasyRPG's widescreen hacks.
 
-Run the script with --help to get started.
+Run the script with --help to get started. Currently the script is only tested on Artix and Debian Linux with the Dash shell.
 
 > N.B: Only the top level of directories in patches are applied to the game files case-insensitively (e.g. `GameOver` and `Gameover` will not conflict)—files and deeper subdirectories are not checked for matches and will be copied as normal.
 
