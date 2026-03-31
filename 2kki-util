@@ -226,7 +226,7 @@ done
 [ -z "$is_out_dir_changed" ] && [ -d "$out_dir" ] && die 'output directory already exists'
 [ -z "$is_out_dir_changed" ] && [ -d "$work_dir" ] && die 'working directory already exists'
 
-case "$use_7zip" in
+[ -n "$use_7zip" ] && case "$use_7zip" in
 	BOTH|GAME|PATCH) : ;;
 	*) usage ;;
 esac
