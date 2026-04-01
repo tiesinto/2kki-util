@@ -147,10 +147,6 @@ install_rtp(){
 
 	write_debug 'unpacking RTP'
 
-	# this was mainly adapted from the pkgbuild for rpg2000-rtp
-	# written by carstene1ns from easyrpg <arch carsten-teibes de>
-	# http://git.io/ctPKG
-
 	# unpack
 	unar -e ms932 "$_rtp_dir/2000rtp.zip" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
 	unar "$_rtp_dir/raw/RTPｾｯﾄｱｯﾌﾟ/RPG2000RTP.exe" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
@@ -160,9 +156,6 @@ install_rtp(){
 
 	write_debug 'patching RTP'
 
-	# convert text
-	iconv -f ms932 -t UTF-8 "$_rtp_dir/raw/RTPｾｯﾄｱｯﾌﾟ/使用規約.txt" > "$_rtp_dir/raw/使用規約.txt"
-	iconv -f ms932 -t UTF-8 "$_rtp_dir/raw/RTP_patchk_190612/RTPの修正ファイルについて.txt" > "$_rtp_dir/raw/RTPの修正ファイルについて.txt"
 	# apply patch
 	mv "$_rtp_dir/raw/RTP_patchk_190612/モンスター.png" "$_rtp_dir/raw/2000/RTP/FaceSet"
 	mv "$_rtp_dir/raw/RTP_patchk_190612/主人公3.png" "$_rtp_dir/raw/2000/RTP/CharSet"
@@ -170,9 +163,8 @@ install_rtp(){
 		mv "$_rtp_dir/raw/RTP_patchk_190612/$img_name.png" "$_rtp_dir/raw/2000/RTP/ChipSet"
 	done
 
-	rm "$_rtp_dir/RTP_patchk_190612.zip" "$_rtp_dir/2000rtp.zip"
 	mv "$_rtp_dir/raw/2000/RTP"/* "$_rtp_dir"
-	rm -Rf "$_rtp_dir/raw"
+	rm -Rf "$_rtp_dir/raw" "$_rtp_dir/RTP_patchk_190612.zip" "$_rtp_dir/2000rtp.zip" "$_rtp_dir/Harmony.dll"
 }
 
 install_language(){
