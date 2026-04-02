@@ -21,7 +21,7 @@ write_debug(){
 }
 
 die(){
-	write_debug "$1" >&2
+	write_debug "ERROR: $1" >&2
 	print_debug_vars
 	exit 1
 }
@@ -236,7 +236,7 @@ done
 
 if [ -f "$game_path" ]; then
 	write_debug 'extracting game archive'
-	if [ "$use_7zip" = 'GAME' ] || [ "$use_7zip" = 'BOTH' ]; then
+	if [ "$use_7zip" = 'game' ] || [ "$use_7zip" = 'both' ]; then
 		! 7z -mmt x "$game_path" -o"$work_dir/game" &&
 			die 'error extracting game archive'
 	else
@@ -280,7 +280,7 @@ convert_to_opus "$real_game_dir/Sound" 50
 
 if [ -f "$patch_file" ]; then
 	write_debug 'extracting patch'
-	if [ "$use_7zip" = 'PATCH' ] || [ "$use_7zip" = 'BOTH' ]; then
+	if [ "$use_7zip" = 'patch' ] || [ "$use_7zip" = 'both' ]; then
 		! 7z -mmt x "$patch_file" -o"$work_dir/patch" &&
 			die 'error extracting patch archive'
 	else
