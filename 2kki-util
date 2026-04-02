@@ -28,7 +28,7 @@ die(){
 
 usage(){
 	printf '
-	%s [-d] [-7 PATCH|GAME|BOTH] -g ARCHIVE|DIRECTORY [-p ARCHIVE] [-o DIRECTORY] [-w DIRECTORY]
+	%s [-d] [-7 WHICH] -g ARCHIVE|DIRECTORY [-p ARCHIVE] [-o DIRECTORY] [-w DIRECTORY]
 
 		-g     select game directory/archive
 		-p     select patch archive
@@ -36,7 +36,7 @@ usage(){
 		-w     set custom working directory
 
 		-d     remove working directory after installation
-		-7     use 7z extractor for PATCH, GAME or BOTH
+		-7     use 7z extractor. WHICH is patch, game or both
 
 	-o will default to the game path if the game is a directory and -o is unset
 	if using -p you must provide an archive
@@ -147,7 +147,6 @@ install_rtp(){
 
 	write_debug 'unpacking RTP'
 
-	# unpack
 	unar -e ms932 "$_rtp_dir/2000rtp.zip" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
 	unar "$_rtp_dir/raw/RTPｾｯﾄｱｯﾌﾟ/RPG2000RTP.exe" -o "$_rtp_dir/raw" -q >/dev/null 2>&1
 	unshield -e ms932 -d "$_rtp_dir/raw/rtp" x "$_rtp_dir/raw/RPG2000RTP/data1.cab" >/dev/null 2>&1
@@ -156,7 +155,6 @@ install_rtp(){
 
 	write_debug 'patching RTP'
 
-	# apply patch
 	mv "$_rtp_dir/raw/RTP_patchk_190612/モンスター.png" "$_rtp_dir/raw/2000/RTP/FaceSet"
 	mv "$_rtp_dir/raw/RTP_patchk_190612/主人公3.png" "$_rtp_dir/raw/2000/RTP/CharSet"
 	for img_name in '基本' 'ダンジョン' '船' '内装' '外観'; do
@@ -187,6 +185,12 @@ work_dir="$exec_dir/2kki-install-working"
 out_dir="$exec_dir/2kki-install-output"
 
 while getopts :dw:o:g:p:7: OPT ; do case "$OPT" in
+	7)
+		use_7zip="$OPTARG"
+		case "$use_7zip" in
+			both|game|patch) : ;;
+			*) usage ;;
+		esac
 	o)
 	       out_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
 	       is_out_dir_changed=1
@@ -198,7 +202,6 @@ while getopts :dw:o:g:p:7: OPT ; do case "$OPT" in
 	g) game_path="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
 	p) patch_file="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
 	d) delete_work_dir=1 ;;
-	7) use_7zip="$OPTARG" ;;
 	?) usage ;;
 esac done
 
@@ -217,11 +220,6 @@ done
 
 [ -z "$is_out_dir_changed" ] && [ -d "$out_dir" ] && die 'output directory already exists'
 [ -z "$is_out_dir_changed" ] && [ -d "$work_dir" ] && die 'working directory already exists'
-
-[ -n "$use_7zip" ] && case "$use_7zip" in
-	BOTH|GAME|PATCH) : ;;
-	*) usage ;;
-esac
 
 mkdir -p "$work_dir"
 mkdir -p "$out_dir"
