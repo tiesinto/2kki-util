@@ -191,6 +191,7 @@ while getopts :dw:o:g:p:7: OPT ; do case "$OPT" in
 			both|game|patch) : ;;
 			*) usage ;;
 		esac
+		;;
 	o)
 	       out_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
 	       is_out_dir_changed=1
