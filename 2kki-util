@@ -219,13 +219,19 @@ done
 [ "$game_path" = "$out_dir" ] || [ "$game_path" = "$work_dir" ] &&
 	die 'game path cannot be the output/working directory'
 
-[ -z "$is_out_dir_changed" ] && [ -d "$out_dir" ] && die 'output directory already exists'
-[ -z "$is_out_dir_changed" ] && [ -d "$work_dir" ] && die 'working directory already exists'
-
+[ -z "$is_work_dir_changed" ] && [ -d "$work_dir" ] &&
+	die 'working directory already exists'
 mkdir -p "$work_dir"
-mkdir -p "$out_dir"
 [ ! -d "$work_dir" ] && die 'failure making working directory'
-[ ! -d "$out_dir" ] && die 'failure making output directory'
+
+if [ -d "$game_path" ] && [ -z "$is_out_dir_changed" ]; then
+	write_debug 'game files will be patched directly'
+else
+	[ -z "$is_out_dir_changed" ] && [ -d "$out_dir" ] &&
+		die 'output directory already exists'
+	mkdir -p "$out_dir"
+	[ ! -d "$out_dir" ] && die 'failure making output directory'
+fi
 
 # trap print_debug_vars INT TERM
 
@@ -254,10 +260,14 @@ else
 	die 'game path is neither an archive nor a directory'
 fi
 
-if [ "$is_out_dir_changed" = '1' ] && [ -d "$game_path" ]; then
-	write_debug 'moving real game path to output directory'
-	cp -R "$real_game_dir"/* "$out_dir"
-	real_game_dir="$out_dir"
+if [ -d "$game_path" ]; then
+	if [ "$is_out_dir_changed" = '1' ]; then
+		write_debug 'moving real game path to output directory'
+		cp -R "$real_game_dir"/* "$out_dir"
+		real_game_dir="$out_dir"
+	else
+		out_dir="$real_game_dir"
+	fi
 fi
 
 install_rtp "$work_dir/rtp"
@@ -305,7 +315,7 @@ fi
 write_debug 'patching RPG_RT.ini'
 sed -i 's/MapEditZoom=.*/MapEditZoom=0/;/^WinW=/d;/^WinH=/d' "$real_game_dir/RPG_RT.ini"
 write_debug 'removing RPG_RT.exe'
-rm "$real_game_dir/RPG_RT.exe"
+rm "$real_game_dir/RPG_RT.exe" 2>/dev/null
 
 if [ ! "$out_dir" = "$game_path" ]; then
 	write_debug 'moving game files to output directory'
