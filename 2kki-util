@@ -193,11 +193,11 @@ while getopts :dw:o:g:p:7: OPT ; do case "$OPT" in
 		esac
 		;;
 	o)
-	       out_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
+	       out_dir="$(realpath -mq "$OPTARG" 2>/dev/null)"
 	       is_out_dir_changed=1
 	       ;;
 	w)
-	       work_dir="$(realpath -q "$OPTARG" 2>/dev/null)"
+	       work_dir="$(realpath -mq "$OPTARG" 2>/dev/null)"
 	       is_work_dir_changed=1
 	       ;;
 	g) game_path="$(realpath -q "$OPTARG" 2>/dev/null)" ;;
