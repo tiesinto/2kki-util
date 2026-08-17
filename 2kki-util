@@ -244,7 +244,7 @@ done
 if [ -f "$game_path" ]; then
 	write_debug 'extracting game archive'
 	if [ "$use_7zip" = 'game' ] || [ "$use_7zip" = 'both' ]; then
-		! 7z -mmt x "$game_path" -o"$work_dir/game" &&
+		! 7z -mmt=on x -mcp=932 "$game_path" -o"$work_dir/game" &&
 			die 'error extracting game archive'
 	else
 		! unar -e ms932 "$game_path" -o "$work_dir/game" -D &&
@@ -292,7 +292,7 @@ convert_to_opus "$real_game_dir/Sound" 50
 if [ -f "$patch_file" ]; then
 	write_debug 'extracting patch'
 	if [ "$use_7zip" = 'patch' ] || [ "$use_7zip" = 'both' ]; then
-		! 7z -mmt x "$patch_file" -o"$work_dir/patch" &&
+		! 7z -mmt=on x -mcp=932 "$patch_file" -o"$work_dir/patch" &&
 			die 'error extracting patch archive'
 	else
 		! unar -e ms932 "$patch_file" -o "$work_dir/patch" -D &&
