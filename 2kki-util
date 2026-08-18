@@ -17,11 +17,11 @@ print_debug_vars(){
 }
 
 write_debug(){
-	printf '%s: %s\n' "${0##*/}" "$1"
+	printf '%s: %s\n' "${0##*/}" "$*"
 }
 
 die(){
-	write_debug "ERROR: $1" >&2
+	write_debug "ERROR: $*" >&2
 	print_debug_vars
 	exit 1
 }
@@ -59,9 +59,12 @@ cicp(){
 		if [ -d "$_dest/$src_base" ]; then
 			cp -R "$src_dir" "$_dest"
 		else
-			ci_match="$(find "$_dest" -mindepth 1 -maxdepth 1 -type d -iname "$src_base")"
+			ci_match="$(find "$_dest" -mindepth 1 -maxdepth 1 \
+				-type d -iname "$src_base")"
 			if [ "$(printf '%s\n' "$ci_match" | wc -l | tr -d '[:space:]')" -gt 1 ]; then
-				write_debug "WARNING: more than one match found for case insensitive move: $src_dir" >&2
+				write_debug 'WARNING: more than one match' \
+					'found for case insensitive move:' \
+					"$src_dir" >&2
 				printf '%s\n' "$ci_match" | while read -r conflict; do
 					write_debug "conflict: $conflict" >&2
 				done
